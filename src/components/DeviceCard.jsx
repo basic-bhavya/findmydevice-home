@@ -246,10 +246,17 @@ export default function DeviceCard({
                 <span>Ringing now ({ringSeconds}s)...</span>
               </span>
             ) : lastPingStatus ? (
-              <span className="flex items-center gap-1.5 truncate">
-                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="truncate">{lastPingStatus.type} sent at {lastPingStatus.time}</span>
-              </span>
+              lastPingStatus.error ? (
+                <span className="flex items-center gap-1.5 text-rose-400 truncate" title={lastPingStatus.error}>
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="truncate">Error: {lastPingStatus.error}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 truncate">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate">{lastPingStatus.type} sent at {lastPingStatus.time}</span>
+                </span>
+              )
             ) : (
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-slate-500" />

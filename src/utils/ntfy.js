@@ -1,5 +1,6 @@
 /**
  * Utility to communicate with ntfy push notification service
+ * Uses standard JSON body to support UTF-8 emojis and avoid browser ByteString header restrictions.
  */
 
 export async function sendPing({
@@ -14,28 +15,38 @@ export async function sendPing({
 
   const cleanServer = server.replace(/\/+$/, '');
   const cleanTopic = topic.trim();
-  const url = `${cleanServer}/${cleanTopic}`;
+  const url = `${cleanServer}`;
 
-  const headers = {
-    'Priority': isLoudAlarm ? '5' : '3',
-    'Tags': isLoudAlarm ? 'rotating_light,loudspeaker' : 'bell',
-    'Title': isLoudAlarm 
-      ? `🚨 FIND MY PHONE: ${deviceName || 'Target Device'}`
-      : `🔔 CHIME: ${deviceName || 'Target Device'}`,
+  const payload = {
+    topic: cleanTopic,
+    priority: isLoudAlarm ? 5 : 3,
+    tags: isLoudAlarm ? ['rotating_light', 'loudspeaker'] : ['bell'],
+    title: isLoudAlarm 
+      ? `🚨 FIND MY PHONE: ${deviceName || 'Target Phone'}`
+      : `🔔 CHIME: ${deviceName || 'Target Phone'}`,
+    message: isLoudAlarm
+      ? `Ping sent from Home Hub tablet at ${new Date().toLocaleTimeString()}! Tap this notification to dismiss the alarm.`
+      : `Gentle chime ping from Home Hub at ${new Date().toLocaleTimeString()}.`,
+    actions: [
+      {
+        action: 'view',
+        label: 'Dismiss',
+        url: `${cleanServer}/${cleanTopic}`
+      }
+    ]
   };
-
-  const body = isLoudAlarm
-    ? `Ping sent from Home Hub tablet at ${new Date().toLocaleTimeString()}! Tap this notification to dismiss the alarm.`
-    : `Gentle chime ping from Home Hub at ${new Date().toLocaleTimeString()}.`;
 
   const response = await fetch(url, {
     method: 'POST',
-    headers,
-    body
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to send ping (${response.status}: ${response.statusText})`);
+    const errorText = await response.text();
+    throw new Error(`Server returned ${response.status}: ${errorText || response.statusText}`);
   }
 
   return response.json();
@@ -49,16 +60,22 @@ export async function sendDismiss({
   if (!topic) return;
   const cleanServer = server.replace(/\/+$/, '');
   const cleanTopic = topic.trim();
-  const url = `${cleanServer}/${cleanTopic}`;
+  const url = `${cleanServer}`;
+
+  const payload = {
+    topic: cleanTopic,
+    priority: 3,
+    tags: ['white_check_mark'],
+    title: `✅ Found: ${deviceName || 'Phone'}`,
+    message: `Alarm was cancelled from the Home Hub.`
+  };
 
   return fetch(url, {
     method: 'POST',
     headers: {
-      'Priority': '3',
-      'Tags': 'white_check_mark',
-      'Title': `✅ Found: ${deviceName || 'Device'}`,
+      'Content-Type': 'application/json'
     },
-    body: `Alarm was cancelled from the Home Hub.`
+    body: JSON.stringify(payload)
   });
 }
 
