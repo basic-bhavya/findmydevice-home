@@ -76,6 +76,34 @@ export default function DeviceCard({
 
   const colors = COLOR_MAP[device.color] || COLOR_MAP.blue;
 
+  // Listen to remote delete events via SSE (when dismissed from phone)
+  useEffect(() => {
+    if (!device.topic) return;
+    const cleanServer = (device.server || 'https://ntfy.sh').replace(/\/+$/, '');
+    const sseUrl = `${cleanServer}/${device.topic}/sse`;
+
+    let eventSource;
+    try {
+      eventSource = new EventSource(sseUrl);
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.event === 'message_delete') {
+            setIsRinging(false);
+          }
+        } catch {
+          // ignore
+        }
+      };
+    } catch (err) {
+      console.warn('SSE subscription error', err);
+    }
+
+    return () => {
+      if (eventSource) eventSource.close();
+    };
+  }, [device.topic, device.server]);
+
   useEffect(() => {
     let interval = null;
     if (isRinging) {

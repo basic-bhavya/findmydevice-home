@@ -1,6 +1,6 @@
 /**
  * Utility to communicate with ntfy push notification service
- * Uses standard JSON body to support UTF-8 emojis and avoid browser ByteString header restrictions.
+ * Uses standard JSON body and sequence_id for true notification replacement & remote dismissal.
  */
 
 export async function sendPing({
@@ -19,19 +19,22 @@ export async function sendPing({
 
   const payload = {
     topic: cleanTopic,
+    sequence_id: 'fmd-alarm', // Replaces existing alert to prevent overlapping sounds
     priority: isLoudAlarm ? 5 : 3,
     tags: isLoudAlarm ? ['rotating_light', 'loudspeaker'] : ['bell'],
     title: isLoudAlarm 
       ? `🚨 FIND MY PHONE: ${deviceName || 'Target Phone'}`
       : `🔔 CHIME: ${deviceName || 'Target Phone'}`,
     message: isLoudAlarm
-      ? `Ping sent from Home Hub tablet at ${new Date().toLocaleTimeString()}! Tap this notification to dismiss the alarm.`
+      ? `Ping sent from Home Hub tablet at ${new Date().toLocaleTimeString()}!`
       : `Gentle chime ping from Home Hub at ${new Date().toLocaleTimeString()}.`,
     actions: [
       {
-        action: 'view',
-        label: 'Dismiss',
-        url: `${cleanServer}/${cleanTopic}`
+        action: 'http',
+        label: '⏹ Stop Ringing',
+        url: `${cleanServer}/${cleanTopic}/fmd-alarm`,
+        method: 'DELETE',
+        clear: true
       }
     ]
   };
@@ -52,31 +55,23 @@ export async function sendPing({
   return response.json();
 }
 
+/**
+ * Remotely delete/cancel the alarm notification from the phone's notification tray
+ */
 export async function sendDismiss({
   server = 'https://ntfy.sh',
-  topic,
-  deviceName
+  topic
 }) {
   if (!topic) return;
   const cleanServer = server.replace(/\/+$/, '');
   const cleanTopic = topic.trim();
-  const url = `${cleanServer}`;
+  const url = `${cleanServer}/${cleanTopic}/fmd-alarm`;
 
-  const payload = {
-    topic: cleanTopic,
-    priority: 3,
-    tags: ['white_check_mark'],
-    title: `✅ Found: ${deviceName || 'Phone'}`,
-    message: `Alarm was cancelled from the Home Hub.`
-  };
-
-  return fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
+  const response = await fetch(url, {
+    method: 'DELETE'
   });
+
+  return response.ok;
 }
 
 /**
